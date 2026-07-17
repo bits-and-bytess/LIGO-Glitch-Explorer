@@ -15,11 +15,11 @@ import random
 from pathlib import Path
 
 import torch
-
-from model.model import load_model, GRAVITY_SPY_CLASSES
-from model.gradcam import GradCAMExplainer
-from model.dataset import build_transforms
 from torchvision.datasets import ImageFolder
+
+from model.dataset import build_transforms
+from model.gradcam import GradCAMExplainer
+from model.model import load_model
 
 OUT_DIR = Path(__file__).parent.parent / "backend" / "static" / "library"
 WEIGHTS_PATH = Path(__file__).parent.parent / "model" / "weights" / "efficientnet_gravityspy.pt"

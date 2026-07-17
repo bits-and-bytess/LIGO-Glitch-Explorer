@@ -18,8 +18,8 @@ from pathlib import Path
 import torch
 from gwpy.segments import DataQualityFlag
 
-from model.model import load_model, GRAVITY_SPY_CLASSES
 from model.gradcam import GradCAMExplainer
+from model.model import GRAVITY_SPY_CLASSES, load_model
 from model.ood import OODThreshold
 from preprocessing.qtransform import preprocess
 
@@ -64,7 +64,6 @@ def main():
             t += args.stride
             continue
 
-        import numpy as np
         tensor = torch.from_numpy(pre.image).permute(2, 0, 1).float().div(255).unsqueeze(0).to(device)
         pred_idx, probs, logits, emb = model.predict(tensor)
         is_ood, score = ood.is_ood(logits)

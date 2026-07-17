@@ -1,0 +1,14 @@
+frontend/
+data/
+tests/
+.github/
+.git/
+**/__pycache__/
+**/*.pyc
+model/weights/
+backend/static/results/
+backend/static/library/
+backend/static/gallery/
+*.md
+.venv/
+venv/

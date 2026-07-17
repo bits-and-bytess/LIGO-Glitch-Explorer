@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Model weights & large artifacts (use Git LFS or a release asset instead)
+model/weights/*.pt
+model/weights/*.json
+model/weights/*.npz
+
+# Generated data
+data/raw/
+data/processed/
+
+# Generated static assets (regenerate via scripts/*)
+backend/static/results/
+backend/static/library/
+backend/static/gallery/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Env
+.env
+.env.local

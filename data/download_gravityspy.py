@@ -19,7 +19,6 @@ Usage:
     python download_gravityspy.py --out data/raw --record-id 1476551
 """
 import argparse
-import io
 import sys
 import zipfile
 from pathlib import Path

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
+from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 
 # The 22 Gravity Spy classes (v1.1 taxonomy). Adjust if your dataset
 # version differs -- keep this list in sync with the label encoder used

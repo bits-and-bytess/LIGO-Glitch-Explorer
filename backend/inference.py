@@ -12,8 +12,8 @@ import numpy as np
 import torch
 from torchvision import transforms
 
-from model.model import GlitchClassifier, load_model, GRAVITY_SPY_CLASSES
 from model.gradcam import GradCAMExplainer
+from model.model import GRAVITY_SPY_CLASSES, GlitchClassifier, load_model
 from model.ood import OODThreshold
 from preprocessing.qtransform import preprocess
 

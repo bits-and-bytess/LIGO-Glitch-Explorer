@@ -1,10 +1,11 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 
-from backend.routers import analyze, library, gallery
 from backend.inference import inference_service
+from backend.routers import analyze, gallery, library
 
 app = FastAPI(
     title="LIGO Glitch Explorer API",

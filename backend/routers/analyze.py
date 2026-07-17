@@ -4,7 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from backend.inference import inference_service
 from backend.schemas import AnalyzeResponse
-from preprocessing.qtransform import PreprocessError, VALID_DURATIONS
+from preprocessing.qtransform import VALID_DURATIONS, PreprocessError
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 

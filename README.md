@@ -48,6 +48,49 @@ cd backend && uvicorn main:app --reload --port 8000
 cd frontend && npm install && npm run dev
 ```
 
+## Testing & CI
+
+```bash
+pip install -r requirements-dev.txt --break-system-packages
+pytest -v
+ruff check .
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the backend test suite +
+lint and the frontend production build on every push/PR to `main`. The
+test suite is deliberately scoped to things that don't need gwpy/network
+access or trained weights (model architecture, OOD math, the image/CSV
+preprocessing branches) so CI stays fast and doesn't depend on GWOSC being
+reachable from the runner.
+
+## Deployment
+
+**Backend** (Hugging Face Spaces or Render, both free-tier friendly):
+```bash
+docker build -t ligo-glitch-backend .
+docker run -p 8000:8000 ligo-glitch-backend
+```
+The `Dockerfile` does **not** bake in model weights or pre-generated
+static assets by default (they're large binaries that don't belong in
+git history) -- see the comments at the top of the `Dockerfile` for the
+three ways to get them into the running container (bake in, volume mount,
+or pull from object storage on startup).
+
+- *Hugging Face Spaces:* create a Space with the Docker SDK, push this
+  repo to it (or link it), Spaces builds from the `Dockerfile` automatically.
+- *Render:* new Web Service → Docker runtime → point at this repo. Render
+  sets `$PORT` for you; the Dockerfile already respects it.
+
+**Frontend** (Vercel):
+```bash
+cd frontend
+vercel deploy
+```
+Set the `VITE_API_BASE` environment variable in your Vercel project
+settings to your deployed backend's URL (see `frontend/.env.example`).
+`vercel.json` includes the SPA rewrite rule React Router needs for direct
+URL loads (e.g. a shared `/analyze/{result_id}` permalink).
+
 ## The one contract that holds the whole system together
 
 Every input path (HDF5 strain, GPS+detector, raw image, CSV timeseries)

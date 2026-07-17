@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -109,8 +108,8 @@ def _from_hdf5(path_or_buffer, detector: Optional[str], duration: float) -> Prep
 # Format 2: GPS time + detector -> pull from GWOSC
 # --------------------------------------------------------------------------
 def _from_gps(gps_time: float, detector: str, duration: float) -> PreprocessResult:
-    from gwpy.timeseries import TimeSeries
     from gwpy.segments import DataQualityFlag
+    from gwpy.timeseries import TimeSeries
 
     warnings = []
     if detector not in VALID_DETECTORS:
@@ -207,7 +206,6 @@ def _from_image(path_or_buffer) -> PreprocessResult:
 # --------------------------------------------------------------------------
 def _from_csv(path_or_buffer, detector: Optional[str], duration: float) -> PreprocessResult:
     import pandas as pd
-    from gwpy.timeseries import TimeSeries
 
     warnings = []
     df = pd.read_csv(path_or_buffer)
@@ -227,10 +225,10 @@ def _from_csv(path_or_buffer, detector: Optional[str], duration: float) -> Prepr
         raise PreprocessError("CSV has too few samples to infer a sample rate.")
 
     dt_diffs = np.diff(t)
+    if np.any(dt_diffs <= 0):
+        raise PreprocessError("Time column is not monotonically increasing.")
     dt_median = np.median(dt_diffs)
     dt_std = np.std(dt_diffs)
-    if dt_median <= 0:
-        raise PreprocessError("Time column is not monotonically increasing.")
 
     inferred_rate = 1.0 / dt_median
     # Irregular timestamps => sample rate inference is unreliable (spec
@@ -249,6 +247,8 @@ def _from_csv(path_or_buffer, detector: Optional[str], duration: float) -> Prepr
             f"match a standard LIGO rate {EXPECTED_SAMPLE_RATES}; using "
             f"the inferred rate as-is, but treat results with caution."
         )
+
+    from gwpy.timeseries import TimeSeries
 
     ts = TimeSeries(y, sample_rate=inferred_rate, t0=t[0])
     ts = _center_crop(ts, duration, warnings)

@@ -1,4 +1,7 @@
-const BASE = "/api"; // proxied to the FastAPI backend by vite.config.js in dev
+// In dev, "/api" is proxied to localhost:8000 by vite.config.js.
+// In production (Vercel), set VITE_API_BASE to the deployed backend's
+// full URL (e.g. https://your-space.hf.space or https://your-app.onrender.com).
+const BASE = import.meta.env.VITE_API_BASE || "/api";
 
 export async function getLibrary(search) {
   const url = new URL(`${BASE}/library`, window.location.origin);
