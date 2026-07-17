@@ -9,20 +9,33 @@ classes.json manifest matching backend/schemas.GlitchClassSummary.
 Physical-origin descriptions and known-similar-classes below are a
 starting point based on published Gravity Spy characterizations -- refine
 these with your own reading for the public Methodology / Library pages.
+
+Usage:
+    python scripts/generate_library_assets.py
+    python scripts/generate_library_assets.py --data data/processed --weights model/weights/foo.pt --out backend/static/library
 """
+import argparse
 import json
 import random
+import sys
 from pathlib import Path
 
+# Allow running as `python scripts/generate_library_assets.py` regardless
+# of current working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import numpy as np
 import torch
+from PIL import Image
 from torchvision.datasets import ImageFolder
 
 from model.dataset import build_transforms
 from model.gradcam import GradCAMExplainer
 from model.model import load_model
 
-OUT_DIR = Path(__file__).parent.parent / "backend" / "static" / "library"
-WEIGHTS_PATH = Path(__file__).parent.parent / "model" / "weights" / "efficientnet_gravityspy.pt"
+DEFAULT_DATA_ROOT = "data/processed"
+DEFAULT_WEIGHTS_PATH = "model/weights/efficientnet_gravityspy.pt"
+DEFAULT_OUT_DIR = "backend/static/library"
 
 # Starting-point descriptions. These are intentionally brief placeholders;
 # expand with citations to the Gravity Spy paper / Zoo descriptions before
@@ -62,14 +75,22 @@ SIMILAR = {
 
 
 def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data", default=DEFAULT_DATA_ROOT, help="root containing train/val/test/<class>/*.png")
+    ap.add_argument("--weights", default=DEFAULT_WEIGHTS_PATH)
+    ap.add_argument("--out", default=DEFAULT_OUT_DIR)
+    ap.add_argument("--examples-per-class", type=int, default=3)
+    ap.add_argument("--seed", type=int, default=0)
+    args = ap.parse_args()
+
+    random.seed(args.seed)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    model = load_model(str(WEIGHTS_PATH), device=device)
+    model = load_model(args.weights, device=device)
     gradcam = GradCAMExplainer(model)
-    val_ds = ImageFolder(
-        Path("data/processed/val"), transform=build_transforms(train=False)
-    )
+    val_ds = ImageFolder(Path(args.data) / "val", transform=build_transforms(train=False))
 
     # group sample indices by class
     by_class: dict[str, list[int]] = {c: [] for c in val_ds.classes}
@@ -81,19 +102,18 @@ def main():
         indices = by_class.get(cls_name, [])
         if not indices:
             continue
-        chosen = random.sample(indices, k=min(3, len(indices)))
+        chosen = random.sample(indices, k=min(args.examples_per_class, len(indices)))
 
-        cls_dir = OUT_DIR / cls_name
+        cls_dir = out_dir / cls_name
         cls_dir.mkdir(exist_ok=True)
         example_paths = []
         for i, idx in enumerate(chosen):
             image_tensor, label = val_ds[idx]
             raw_path, _ = val_ds.samples[idx]
-            from PIL import Image
             raw_img = Image.open(raw_path).convert("RGB").resize((224, 224))
 
             gradcam_bytes = gradcam.overlay_png_bytes(
-                image_tensor.unsqueeze(0).to(device), __import__("numpy").array(raw_img), class_idx=label
+                image_tensor.unsqueeze(0).to(device), np.array(raw_img), class_idx=label
             )
             (cls_dir / f"example_{i}.png").write_bytes(gradcam_bytes)
             raw_img.save(cls_dir / f"spectrogram_{i}.png")
@@ -117,8 +137,8 @@ def main():
             "similar_classes": SIMILAR.get(cls_name, []),
         })
 
-    (OUT_DIR / "classes.json").write_text(json.dumps(manifest, indent=2))
-    print(f"Wrote {len(manifest)} class entries to {OUT_DIR / 'classes.json'}")
+    (out_dir / "classes.json").write_text(json.dumps(manifest, indent=2))
+    print(f"Wrote {len(manifest)} class entries to {out_dir / 'classes.json'}")
 
 
 if __name__ == "__main__":

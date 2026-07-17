@@ -9,8 +9,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
+
+# Allow running as `python model/train.py` (not just `python -m model.train`)
+# by putting the repo root on sys.path so `from model.dataset import ...`
+# resolves regardless of which way this script is invoked.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import torch
 import torch.nn as nn
@@ -64,17 +70,24 @@ def main():
     ap.add_argument("--out", default="model/weights/efficientnet_gravityspy.pt")
     ap.add_argument("--freeze-backbone-epochs", type=int, default=3,
                      help="train only the classifier head for this many epochs first")
+    ap.add_argument("--num-workers", type=int, default=4,
+                     help="DataLoader worker processes; set 0 for environments "
+                          "without /dev/shm or multiprocessing support")
+    ap.add_argument("--no-pretrained", action="store_true",
+                     help="skip ImageNet-pretrained weights (needs network access "
+                          "to download.pytorch.org); useful for offline smoke tests "
+                          "of the training loop itself")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
     train_loader, val_loader, test_loader, classes = get_dataloaders(
-        args.data, batch_size=args.batch_size
+        args.data, batch_size=args.batch_size, num_workers=args.num_workers
     )
     print(f"Classes ({len(classes)}): {classes}")
 
-    model = GlitchClassifier(num_classes=len(classes), pretrained=True).to(device)
+    model = GlitchClassifier(num_classes=len(classes), pretrained=not args.no_pretrained).to(device)
     criterion = nn.CrossEntropyLoss()
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)

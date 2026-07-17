@@ -12,8 +12,13 @@ Usage:
 """
 import argparse
 import json
+import sys
 import uuid
 from pathlib import Path
+
+# Allow running as `python scripts/curate_anomaly_gallery.py` regardless
+# of current working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import torch
 from gwpy.segments import DataQualityFlag
@@ -23,9 +28,9 @@ from model.model import GRAVITY_SPY_CLASSES, load_model
 from model.ood import OODThreshold
 from preprocessing.qtransform import preprocess
 
-WEIGHTS_PATH = Path("model/weights/efficientnet_gravityspy.pt")
-OOD_PATH = Path("model/weights/ood_threshold.json")
-OUT_DIR = Path("backend/static/gallery")
+DEFAULT_WEIGHTS_PATH = "model/weights/efficientnet_gravityspy.pt"
+DEFAULT_OOD_PATH = "model/weights/ood_threshold.json"
+DEFAULT_OUT_DIR = "backend/static/gallery"
 
 
 def main():
@@ -36,14 +41,18 @@ def main():
     ap.add_argument("--stride", type=float, default=4.0, help="seconds between scan windows")
     ap.add_argument("--duration", type=float, default=1.0)
     ap.add_argument("--top-n", type=int, default=50)
+    ap.add_argument("--weights", default=DEFAULT_WEIGHTS_PATH)
+    ap.add_argument("--ood-threshold-path", default=DEFAULT_OOD_PATH)
+    ap.add_argument("--out", default=DEFAULT_OUT_DIR)
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = load_model(str(WEIGHTS_PATH), device=device)
+    model = load_model(args.weights, device=device)
     gradcam = GradCAMExplainer(model)
-    ood = OODThreshold.load(str(OOD_PATH))
+    ood = OODThreshold.load(args.ood_threshold_path)
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     # Restrict the scan to actual science-mode segments -- scanning
     # downtime just produces meaningless "anomalies."
@@ -80,7 +89,7 @@ def main():
     manifest = []
     for score, t, pre, pred_idx in top:
         entry_id = uuid.uuid4().hex[:12]
-        entry_dir = OUT_DIR / entry_id
+        entry_dir = out_dir / entry_id
         entry_dir.mkdir(parents=True, exist_ok=True)
         pre.as_pil().save(entry_dir / "spectrogram.png")
 
@@ -99,7 +108,7 @@ def main():
             "nearest_known_class": GRAVITY_SPY_CLASSES[pred_idx],
         })
 
-    existing_path = OUT_DIR / "anomalies.json"
+    existing_path = out_dir / "anomalies.json"
     existing = json.loads(existing_path.read_text()) if existing_path.exists() else []
     existing.extend(manifest)
     existing_path.write_text(json.dumps(existing, indent=2))

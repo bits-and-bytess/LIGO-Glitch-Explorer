@@ -48,8 +48,10 @@ python scripts/build_dataset.py \
 # 3. Train baseline classifier
 python model/train.py --data data/processed --epochs 20 --out model/weights/efficientnet_gravityspy.pt
 
-# 4. Run the backend
-cd backend && uvicorn main:app --reload --port 8000
+# 4. Run the backend (from repo root -- NOT `cd backend` first, since
+#    backend/main.py uses absolute imports like `from backend.inference import ...`
+#    that only resolve with the repo root on sys.path)
+uvicorn backend.main:app --reload --port 8000
 
 # 5. Run the frontend
 cd frontend && npm install && npm run dev
