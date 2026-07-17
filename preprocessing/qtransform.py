@@ -92,8 +92,7 @@ def _from_hdf5(path_or_buffer, detector: Optional[str], duration: float) -> Prep
         )
 
     ts = TimeSeries.read(path_or_buffer, format="hdf5.gwosc")
-    ts = _center_crop(ts, duration, warnings)
-    image = _qtransform_to_image(ts, warnings)
+    image = _compute_qtransform_image(ts, duration, warnings)
 
     return PreprocessResult(
         image=image,
@@ -118,7 +117,7 @@ def _from_gps(gps_time: float, detector: str, duration: float) -> PreprocessResu
             f"got '{detector}'"
         )
 
-    pad = max(duration, 4.0)  # fetch a bit of margin for the Q-transform
+    pad = TARGET_WHITEN_PAD_SECONDS + duration / 2 + 0.5  # comfortable margin for whitening
     start, end = gps_time - pad, gps_time + pad
 
     # Fallback: confirm the window is in a science-mode segment before
@@ -155,8 +154,7 @@ def _from_gps(gps_time: float, detector: str, duration: float) -> PreprocessResu
             f"expected one of {EXPECTED_SAMPLE_RATES}."
         )
 
-    ts = _center_crop(ts, duration, warnings, center_gps=gps_time)
-    image = _qtransform_to_image(ts, warnings)
+    image = _compute_qtransform_image(ts, duration, warnings, center_gps=gps_time)
 
     return PreprocessResult(
         image=image,
@@ -251,8 +249,7 @@ def _from_csv(path_or_buffer, detector: Optional[str], duration: float) -> Prepr
     from gwpy.timeseries import TimeSeries
 
     ts = TimeSeries(y, sample_rate=inferred_rate, t0=t[0])
-    ts = _center_crop(ts, duration, warnings)
-    image = _qtransform_to_image(ts, warnings)
+    image = _compute_qtransform_image(ts, duration, warnings)
 
     return PreprocessResult(
         image=image,
@@ -266,7 +263,31 @@ def _from_csv(path_or_buffer, detector: Optional[str], duration: float) -> Prepr
 # --------------------------------------------------------------------------
 # shared helpers
 # --------------------------------------------------------------------------
-def _center_crop(ts, duration: float, warnings: list, center_gps: Optional[float] = None):
+# How much padding (seconds, each side of the output window) we'd like
+# available for gwpy's whitening PSD estimate. Below this, whitening
+# quality degrades; below MIN_PAD_FOR_WHITENING, gwpy's default Welch
+# segmenting can fail outright on a too-short signal, so we disable
+# whitening entirely rather than crash.
+TARGET_WHITEN_PAD_SECONDS = 4.0
+MIN_PAD_FOR_WHITENING_SECONDS = 1.0
+
+
+def _compute_qtransform_image(ts, duration: float, warnings: list,
+                               center_gps: Optional[float] = None) -> np.ndarray:
+    """Run the Q-transform and rasterize to a fixed-size RGB array.
+
+    This is the ONE function that defines the "Q-transform colormap"
+    contract every input path must match.
+
+    IMPORTANT: `ts` should be the full/long timeseries available (e.g. an
+    entire GWOSC HDF5 file, or a GPS fetch padded well beyond `duration`),
+    NOT pre-cropped down to `duration`. Whitening estimates a noise PSD via
+    Welch's method, which needs meaningfully more data than the output
+    window itself -- feeding it an already-cropped 1s segment starves that
+    estimate and can crash outright (scipy needs enough samples to form
+    multiple averaging segments). We crop only the *output* via `outseg`,
+    after whitening has used the full buffer.
+    """
     if duration not in VALID_DURATIONS:
         warnings.append(
             f"Requested duration {duration}s is not one of the suggested "
@@ -274,35 +295,89 @@ def _center_crop(ts, duration: float, warnings: list, center_gps: Optional[float
         )
     center = center_gps if center_gps is not None else (ts.t0.value + ts.duration.value / 2)
     half = duration / 2
-    try:
-        return ts.crop(center - half, center + half)
-    except Exception:
-        # not enough data on one side; clip to what's available
-        warnings.append(
-            "Requested time window extends beyond available data; "
-            "cropped to the available segment."
+    available_start = ts.t0.value
+    available_end = ts.t0.value + ts.duration.value
+
+    if center + half <= available_start or center - half >= available_end:
+        raise PreprocessError(
+            f"Requested window [{center - half}, {center + half}] doesn't "
+            f"overlap the available data range [{available_start}, "
+            f"{available_end}] at all."
         )
-        return ts
 
+    # --- NaN handling: GWOSC strain is NaN wherever the detector wasn't in
+    # science mode or failed data-quality checks. Report based on the
+    # OUTPUT window specifically (what the user will actually see/classify),
+    # but sanitize the FULL buffer before Q-transform since NaNs anywhere
+    # in it would otherwise propagate into the whitening PSD estimate.
+    values = np.asarray(ts.value)
+    try:
+        output_window = ts.crop(max(center - half, available_start), min(center + half, available_end))
+        output_nan_frac = float(np.isnan(np.asarray(output_window.value)).mean())
+    except Exception:
+        output_nan_frac = float(np.isnan(values).mean())  # fallback: whole-buffer estimate
 
-def _qtransform_to_image(ts, warnings: list) -> np.ndarray:
-    """Run the Q-transform and rasterize to a fixed-size RGB array.
+    if output_nan_frac > 0.5:
+        raise PreprocessError(
+            f"{output_nan_frac * 100:.0f}% of the requested time window has "
+            f"no valid strain data (detector likely not in science mode, or "
+            f"failed data-quality checks for that period). Try a different "
+            f"time, or widen the search."
+        )
+    if output_nan_frac > 0:
+        warnings.append(
+            f"{output_nan_frac * 100:.1f}% of the requested window has "
+            f"missing/invalid strain data (outside science mode or failing "
+            f"data-quality checks). Gaps were filled before analysis -- "
+            f"treat the classification and GradCAM with extra caution."
+        )
+    if np.isnan(values).any():
+        ts = type(ts)(np.nan_to_num(values, nan=0.0), t0=ts.t0, dt=ts.dt, unit=ts.unit)
 
-    This is the ONE function that defines the "Q-transform colormap"
-    contract every input path must match.
-    """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    # --- Decide whether/how well we can whiten, based on available padding.
+    left_pad = max(0.0, (center - half) - available_start)
+    right_pad = max(0.0, available_end - (center + half))
+    usable_pad = min(left_pad, right_pad)
+
+    whiten = True
+    if usable_pad < MIN_PAD_FOR_WHITENING_SECONDS:
+        whiten = False
+        warnings.append(
+            "Not enough surrounding data to whiten the signal reliably "
+            f"(only {usable_pad:.1f}s of padding around the requested "
+            f"window; need >={MIN_PAD_FOR_WHITENING_SECONDS:.0f}s). Showing "
+            "an unwhitened Q-transform instead -- time-frequency structure "
+            "is still meaningful, but amplitude isn't normalized against "
+            "the detector noise floor, so treat classification confidence "
+            "with extra caution."
+        )
+    elif usable_pad < TARGET_WHITEN_PAD_SECONDS:
+        warnings.append(
+            f"Only {usable_pad:.1f}s of padding available around the "
+            f"requested window (ideally >={TARGET_WHITEN_PAD_SECONDS:.0f}s) "
+            f"for whitening; the noise PSD estimate may be less stable "
+            f"than usual."
+        )
+
+    from gwpy.segments import Segment
 
     try:
         qspec = ts.q_transform(
             qrange=Q_RANGE,
             frange=FREQUENCY_RANGE,
-            whiten=True,
+            whiten=whiten,
+            outseg=Segment(center - half, center + half),
         )
     except Exception as e:
         raise PreprocessError(f"Q-transform failed: {e}")
+
+    return _rasterize_qspec(qspec)
+
+
+def _rasterize_qspec(qspec) -> np.ndarray:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
 
     fig = plt.figure(figsize=(2.24, 2.24), dpi=100)
     ax = fig.add_axes([0, 0, 1, 1])

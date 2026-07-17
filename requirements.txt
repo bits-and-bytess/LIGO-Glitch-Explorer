@@ -1,5 +1,9 @@
 torch>=2.2
 torchvision>=0.17
+# torchcam pins numpy<2.0; gwpy pulls in numpy>=2.0. pip will warn about
+# this conflict on install. Verified in practice (see tests/test_gradcam.py,
+# tests/test_hdf5_preprocessing.py) that both work correctly together
+# despite the warning -- torchcam's pin is stricter than it needs to be.
 torchcam>=0.4.0
 gwpy>=3.0
 gwosc>=0.7

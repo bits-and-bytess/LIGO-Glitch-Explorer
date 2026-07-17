@@ -51,3 +51,24 @@ def test_csv_nonmonotonic_time_raises():
     csv_bytes = io.BytesIO(b"time,strain\n0.0,0.1\n0.5,0.2\n0.1,0.3\n")
     with pytest.raises(PreprocessError):
         preprocess("csv", file=csv_bytes)
+
+
+def test_csv_with_sufficient_samples_produces_valid_image():
+    # Enough samples (8s at 4096Hz) for a real Q-transform, not just the
+    # validation-error branches tested above.
+    import numpy as np
+    import pandas as pd
+
+    sample_rate = 4096
+    n = sample_rate * 8
+    t = np.arange(n) / sample_rate + 1369062010.0
+    rng = np.random.default_rng(0)
+    strain = rng.normal(0, 1e-21, n)
+
+    buf = io.StringIO()
+    pd.DataFrame({"time": t, "strain": strain}).to_csv(buf, index=False)
+    csv_bytes = io.BytesIO(buf.getvalue().encode())
+
+    result = preprocess("csv", file=csv_bytes, duration=1.0)
+    assert result.image.shape == (224, 224, 3)
+    assert abs(result.sample_rate - sample_rate) < 1.0

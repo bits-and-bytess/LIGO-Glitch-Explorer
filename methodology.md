@@ -11,6 +11,28 @@
    (qrange 4–64, frange 10–2048 Hz, whitened) → rasterized to a 224×224 RGB
    image. This is the single contract in `preprocessing/qtransform.py` that
    every input format must satisfy before reaching the model.
+
+   Important internal detail: whitening estimates a noise PSD via Welch's
+   method, which needs meaningfully more data than the displayed window
+   itself. The pipeline therefore keeps a longer buffer around the
+   requested time (target: 4s padding each side) and uses gwpy's `outseg`
+   to crop only the *output* after whitening, rather than cropping first.
+   Below ~1s of padding, whitening is disabled entirely and the Q-transform
+   falls back to unwhitened output rather than crashing -- this is
+   surfaced to the user as an explicit warning, not silently.
+
+   Also worth knowing: gwpy auto-narrows the requested frequency range
+   based on the interaction between qrange and the signal's sample rate --
+   at 4096 Hz with qrange (4, 64), the nominal 2048 Hz upper bound gets
+   reset to roughly 1291 Hz. This is gwpy's own safety behavior, not a bug,
+   but it means the analyzed band is sometimes narrower than the nominal
+   configuration.
+
+   Strain data can also contain NaNs wherever a detector wasn't in science
+   mode or failed data-quality checks. The pipeline checks the fraction of
+   NaNs specifically within the requested output window: below 50% it
+   fills gaps and proceeds with a warning; above 50% it refuses rather
+   than return a classification built on mostly-absent data.
 2. Pre-made spectrogram images skip step 1 entirely; dimensions/aspect
    ratio are validated and a warning surfaces if GradCAM is likely to be
    less meaningful on that input.
