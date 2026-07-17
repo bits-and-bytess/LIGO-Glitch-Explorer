@@ -32,21 +32,34 @@ right now with synthetic or your own data.
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Data (run on a machine with internet access to zenodo.org)
+# 2. Data (run on a machine with internet access -- not this scaffold's sandbox)
+#    Pulls trainingset_v1d1_metadata.csv + trainingsetv1d1.tar.gz (~5.5GB)
+#    from the verified Zenodo record https://zenodo.org/records/1476551
 python data/download_gravityspy.py --out data/raw
 
-# 3. Preprocess to Q-transform spectrograms (the unified image contract)
-python preprocessing/qtransform.py --in data/raw --out data/processed
+#    Converts the raw tarball into data/processed/{train,val,test}/<class>/*.png:
+#    crops out the matplotlib axes (per the dataset's own documented crop box),
+#    picks one duration per sample (default 1.0s), resizes to 224x224.
+python scripts/build_dataset.py \
+    --metadata data/raw/trainingset_v1d1_metadata.csv \
+    --tarball data/raw/trainingsetv1d1.tar.gz \
+    --out data/processed
 
-# 4. Train baseline classifier
+# 3. Train baseline classifier
 python model/train.py --data data/processed --epochs 20 --out model/weights/efficientnet_gravityspy.pt
 
-# 5. Run the backend
+# 4. Run the backend
 cd backend && uvicorn main:app --reload --port 8000
 
-# 6. Run the frontend
+# 5. Run the frontend
 cd frontend && npm install && npm run dev
 ```
+
+Note: an earlier version of this README described a single preprocessing
+step directly from the download. That was wrong about the actual file
+layout -- see `data/download_gravityspy.py` and `scripts/build_dataset.py`
+docstrings for the corrected two-step pipeline, verified against the live
+Zenodo record.
 
 ## Testing & CI
 
