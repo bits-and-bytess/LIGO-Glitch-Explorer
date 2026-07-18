@@ -24,12 +24,20 @@ model/dataset.py expects).
 This script must be run on a machine with internet access (not the
 sandbox this project was originally scaffolded in).
 
+A file this size (5.5GB) is prone to connection drops on ordinary home/
+office networks. download_file() below is resumable: if a download is
+interrupted, just re-run the script -- it picks up from the last byte
+written via an HTTP Range request rather than starting over, and retries
+transient failures with backoff. Don't delete a partial file; it's the
+resume checkpoint.
+
 Usage:
     python data/download_gravityspy.py --out data/raw
     python data/download_gravityspy.py --out data/raw --with-h5 --skip-tarball
 """
 import argparse
 import sys
+import time
 from pathlib import Path
 
 import requests
@@ -54,19 +62,83 @@ def resolve_files(record_id: str):
     }
 
 
-def download_file(url: str, dest: Path, chunk_size: int = 1 << 20):
-    with requests.get(url, stream=True, timeout=60) as r:
-        r.raise_for_status()
-        total = int(r.headers.get("content-length", 0))
-        written = 0
-        with open(dest, "wb") as fh:
-            for chunk in r.iter_content(chunk_size=chunk_size):
-                fh.write(chunk)
-                written += len(chunk)
-                if total:
-                    pct = 100 * written / total
-                    print(f"\r    {dest.name}: {pct:5.1f}%", end="", flush=True)
-        print()
+def download_file(url: str, dest: Path, expected_size: int | None = None,
+                   chunk_size: int = 1 << 20, max_retries: int = 5,
+                   _sleep=time.sleep):
+    """Download `url` to `dest`, resumable across retries.
+
+    If `dest` already has a partial download on disk (e.g. from a prior
+    run that got interrupted), resumes via an HTTP Range request instead
+    of restarting. If the server doesn't honor Range (returns 200 instead
+    of 206), falls back to a clean restart rather than corrupting the file
+    with a truncated-then-appended mismatch.
+
+    Verifies the final size against `expected_size` when known (from the
+    Zenodo API's own file listing) -- a size mismatch after a "successful"
+    stream is exactly the failure mode that produces a corrupt tarball
+    that then fails confusingly deep inside a downstream script instead
+    of here, where the problem actually is.
+    """
+    attempt = 0
+    while True:
+        attempt += 1
+        existing_size = dest.stat().st_size if dest.exists() else 0
+        if expected_size and existing_size >= expected_size:
+            return  # already complete from a prior run
+
+        headers = {}
+        mode = "wb"
+        if existing_size > 0:
+            headers["Range"] = f"bytes={existing_size}-"
+            mode = "ab"
+
+        try:
+            with requests.get(url, stream=True, timeout=60, headers=headers) as r:
+                if existing_size > 0 and r.status_code == 200:
+                    # Server ignored our Range request (doesn't support
+                    # resume for this URL) -- must restart clean rather
+                    # than append full content onto existing bytes.
+                    existing_size = 0
+                    mode = "wb"
+                r.raise_for_status()
+
+                remaining = int(r.headers.get("content-length", 0))
+                total = expected_size or (existing_size + remaining)
+                written = existing_size
+                with open(dest, mode) as fh:
+                    for chunk in r.iter_content(chunk_size=chunk_size):
+                        fh.write(chunk)
+                        written += len(chunk)
+                        if total:
+                            pct = 100 * written / total
+                            print(f"\r    {dest.name}: {pct:5.1f}% "
+                                  f"({written / 1e9:.2f}/{total / 1e9:.2f} GB)",
+                                  end="", flush=True)
+                print()
+
+            final_size = dest.stat().st_size
+            if expected_size and final_size != expected_size:
+                raise OSError(
+                    f"Downloaded size {final_size} != expected {expected_size} "
+                    f"after stream completed without error (connection likely "
+                    f"dropped silently)."
+                )
+            return  # success
+
+        except (requests.exceptions.RequestException, OSError) as e:
+            if attempt >= max_retries:
+                raise RuntimeError(
+                    f"Failed to download {dest.name} after {max_retries} "
+                    f"attempts. Last error: {e}\nA partial file is still on "
+                    f"disk at {dest} -- re-run this script to resume from "
+                    f"where it left off. Do NOT delete the partial file."
+                ) from e
+            wait = min(2 ** attempt, 30)
+            progress = dest.stat().st_size if dest.exists() else 0
+            print(f"\n  Download interrupted ({e}); retrying in {wait}s "
+                  f"(attempt {attempt}/{max_retries}, {progress / 1e9:.2f} GB "
+                  f"written so far) ...")
+            _sleep(wait)
 
 
 def main():
@@ -104,8 +176,10 @@ def main():
         if dest.exists() and dest.stat().st_size == info["size"]:
             print(f"  already have {key}, skipping")
             continue
-        print(f"  downloading {key} ({info['size'] / 1e9:.2f} GB) ...")
-        download_file(info["url"], dest)
+        partial = dest.exists() and dest.stat().st_size > 0
+        print(f"  {'resuming' if partial else 'downloading'} {key} "
+              f"({info['size'] / 1e9:.2f} GB) ...")
+        download_file(info["url"], dest, expected_size=info["size"])
 
     print(f"\nDone. Raw files are in {out_dir}")
     print("Next: python scripts/build_dataset.py "
