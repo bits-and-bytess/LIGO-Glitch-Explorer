@@ -16,6 +16,7 @@ class AnalyzeResponse(BaseModel):
     class_probabilities: dict[str, float]
     ood_score: float
     ood_flagged: bool
+    ood_threshold: float
     ood_interpretation: str
     spectrogram_url: str
     gradcam_url: str

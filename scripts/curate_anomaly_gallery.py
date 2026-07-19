@@ -48,7 +48,6 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = load_model(args.weights, device=device)
-    gradcam = GradCAMExplainer(model)
     ood = OODThreshold.load(args.ood_threshold_path)
 
     out_dir = Path(args.out)
@@ -85,6 +84,14 @@ def main():
 
     candidates.sort(key=lambda c: c[0], reverse=True)
     top = candidates[: args.top_n]
+
+    # Constructed only now, after scanning is done: torchcam's hook,
+    # once attached, intercepts EVERY subsequent forward pass through the
+    # target layer, including the plain model.predict() calls above (which
+    # run under @torch.no_grad() and crash if a GradCAM hook is already
+    # attached). Building GradCAM only when it's actually needed, for the
+    # much smaller top-N set, avoids that entirely.
+    gradcam = GradCAMExplainer(model)
 
     manifest = []
     for score, t, pre, pred_idx in top:

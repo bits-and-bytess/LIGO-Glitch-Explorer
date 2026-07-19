@@ -1,8 +1,10 @@
 import io
+import json
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from backend import inference as inference_module
 from backend.inference import inference_service
 from backend.schemas import AnalyzeResponse
 from preprocessing.qtransform import VALID_DURATIONS, PreprocessError
@@ -57,10 +59,7 @@ async def analyze_gps(
 @router.get("/{result_id}", response_model=AnalyzeResponse)
 async def get_result(result_id: str):
     """Fetch a previously computed result by its shareable permalink id."""
-    import json
-    from pathlib import Path
-
-    result_meta_path = Path(__file__).parent.parent / "static" / "results" / result_id / "meta.json"
+    result_meta_path = inference_module.RESULTS_DIR / result_id / "meta.json"
     if not result_meta_path.exists():
         raise HTTPException(404, "Result not found. Results are only cached temporarily -- "
                                   "re-run the analysis if this is an old link.")

@@ -34,7 +34,6 @@ class InferenceService:
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model: Optional[GlitchClassifier] = None
         self.classes = GRAVITY_SPY_CLASSES
-        self.gradcam: Optional[GradCAMExplainer] = None
         self.ood_threshold: Optional[OODThreshold] = None
 
     def load(self):
@@ -44,7 +43,6 @@ class InferenceService:
                 f"model/train.py first (see README Quickstart)."
             )
         self.model = load_model(str(WEIGHTS_PATH), device=self.device)
-        self.gradcam = GradCAMExplainer(self.model)
         if OOD_THRESHOLD_PATH.exists():
             self.ood_threshold = OODThreshold.load(str(OOD_THRESHOLD_PATH))
         else:
@@ -78,7 +76,19 @@ class InferenceService:
         result_dir.mkdir(parents=True, exist_ok=True)
 
         pre.as_pil().save(result_dir / "spectrogram.png")
-        gradcam_bytes = self.gradcam.overlay_png_bytes(tensor, pre.image, class_idx=pred_idx)
+        # Built fresh per request and torn down immediately after: torchcam's
+        # hook, once attached, intercepts EVERY subsequent forward pass
+        # through the target layer -- including the next request's
+        # model.predict() call above, which runs under @torch.no_grad().
+        # A hook still attached from a prior request crashes that no-grad
+        # forward pass with "cannot register a hook on a tensor that
+        # doesn't require gradient." Explicit removal (not reliance on
+        # __del__/GC timing) is what actually prevents that.
+        gradcam = GradCAMExplainer(self.model)
+        try:
+            gradcam_bytes = gradcam.overlay_png_bytes(tensor, pre.image, class_idx=pred_idx)
+        finally:
+            gradcam.cam_extractor.remove_hooks()
         (result_dir / "gradcam.png").write_bytes(gradcam_bytes)
 
         payload = {
@@ -88,6 +98,7 @@ class InferenceService:
             "class_probabilities": {c: float(p) for c, p in zip(self.classes, probs_np)},
             "ood_score": ood_score,
             "ood_flagged": is_ood,
+            "ood_threshold": self.ood_threshold.threshold,
             "ood_interpretation": interpretation,
             "spectrogram_url": f"/static/results/{result_id}/spectrogram.png",
             "gradcam_url": f"/static/results/{result_id}/gradcam.png",
