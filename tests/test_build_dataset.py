@@ -114,3 +114,49 @@ def test_end_to_end_build_writes_only_requested_duration(tmp_path):
     assert (out_dir / "test" / "Whistle" / "bbbb.png").exists()
     # the 0.5s and 4.0s duration files should NOT have been written
     assert not (out_dir / "train" / "Blip" / "aaaa_0.5.png").exists()
+
+
+def test_rerun_reports_already_existed_instead_of_silently_dropping_the_count(tmp_path):
+    # This is what a real interrupted-download recovery looks like: the
+    # user runs build_dataset.py once against a partial tarball (writing
+    # what it can), the download later completes, and they re-run against
+    # the complete tarball. The images from the first run shouldn't be
+    # silently unaccounted for in the second run's summary.
+    import pathlib
+    import subprocess
+    import sys
+
+    csv_path = tmp_path / "meta.csv"
+    tar_path = tmp_path / "data.tar.gz"
+    out_dir = tmp_path / "processed"
+    repo_root = pathlib.Path(__file__).parent.parent
+
+    _make_metadata_csv(csv_path, [
+        ("aaaa", "Blip", "training"),
+        ("bbbb", "Whistle", "test"),
+        ("cccc", "Blip", "validation"),
+    ])
+    _build_test_tarball(tar_path, [
+        ("aaaa", "Blip", "training", "1.0"),
+        ("bbbb", "Whistle", "test", "1.0"),
+        ("cccc", "Blip", "validation", "1.0"),
+    ])
+
+    def run():
+        return subprocess.run(
+            [sys.executable, "-m", "scripts.build_dataset",
+             "--metadata", str(csv_path), "--tarball", str(tar_path),
+             "--out", str(out_dir), "--duration", "1.0"],
+            capture_output=True, text=True, cwd=str(repo_root),
+        )
+
+    first = run()
+    assert first.returncode == 0, first.stderr
+    assert "Wrote 3 new images" in first.stdout
+    assert "Already present from a prior run: 0" in first.stdout
+
+    second = run()
+    assert second.returncode == 0, second.stderr
+    assert "Wrote 0 new images" in second.stdout
+    assert "Already present from a prior run: 3" in second.stdout
+    assert "Total images now in" in second.stdout

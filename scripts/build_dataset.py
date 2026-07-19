@@ -90,7 +90,7 @@ def main():
     # tarball members without re-scanning the CSV per file.
     by_id = {gs_id: (label, split) for gs_id, label, split in rows}
 
-    written, skipped_no_match, skipped_wrong_duration = 0, 0, 0
+    written, skipped_no_match, skipped_wrong_duration, already_existed = 0, 0, 0, 0
 
     with tarfile.open(args.tarball, "r:gz") as tar:
         for member in tar:
@@ -118,6 +118,7 @@ def main():
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest_path = dest_dir / f"{gs_id}.png"
             if dest_path.exists():
+                already_existed += 1
                 continue
 
             fh = tar.extractfile(member)
@@ -132,7 +133,9 @@ def main():
             if written % 500 == 0:
                 print(f"  ... {written} images written")
 
-    print(f"\nDone. Wrote {written} images to {out_root}")
+    print(f"\nDone. Wrote {written} new images to {out_root}")
+    print(f"Already present from a prior run: {already_existed}")
+    print(f"Total images now in {out_root}: {written + already_existed}")
     print(f"Skipped (wrong duration): {skipped_wrong_duration}")
     print(f"Skipped (no metadata match): {skipped_no_match}")
     print("\nSanity-check the class folder counts before training:")
