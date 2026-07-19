@@ -72,3 +72,29 @@ def test_csv_with_sufficient_samples_produces_valid_image():
     result = preprocess("csv", file=csv_bytes, duration=1.0)
     assert result.image.shape == (224, 224, 3)
     assert abs(result.sample_rate - sample_rate) < 1.0
+
+
+def test_gps_nan_time_raises_clear_error_instead_of_hitting_gwosc():
+    # Real bug: a blank/unparseable GPS time field on the frontend sends
+    # NaN (Python's float("nan") parses successfully, so nothing upstream
+    # rejected it), which used to propagate all the way to a GWOSC fetch
+    # call and fail with a confusing low-level error ("cannot convert
+    # float NaN to integer") instead of a clear, actionable message.
+    from preprocessing.qtransform import _from_gps
+
+    with pytest.raises(PreprocessError, match="finite number"):
+        _from_gps(float("nan"), "H1", 1.0)
+
+
+def test_gps_infinite_time_raises():
+    from preprocessing.qtransform import _from_gps
+
+    with pytest.raises(PreprocessError, match="finite number"):
+        _from_gps(float("inf"), "H1", 1.0)
+
+
+def test_gps_negative_time_raises():
+    from preprocessing.qtransform import _from_gps
+
+    with pytest.raises(PreprocessError, match="non-negative"):
+        _from_gps(-100.0, "H1", 1.0)

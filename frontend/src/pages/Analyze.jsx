@@ -43,7 +43,14 @@ export default function Analyze() {
     try {
       let res;
       if (format === "gps") {
-        res = await analyzeGPS({ gpsTime: parseFloat(gpsTime), detector, duration });
+        const parsedGpsTime = parseFloat(gpsTime);
+        if (gpsTime.trim() === "" || !Number.isFinite(parsedGpsTime)) {
+          throw new Error("Enter a valid GPS time (e.g. 1369062018).");
+        }
+        if (parsedGpsTime < 0) {
+          throw new Error("GPS time must be non-negative.");
+        }
+        res = await analyzeGPS({ gpsTime: parsedGpsTime, detector, duration });
       } else {
         if (!file) throw new Error("Choose a file first.");
         res = await analyzeUpload({ file, inputFormat: format, detector, duration });
@@ -88,6 +95,8 @@ export default function Analyze() {
                 value={gpsTime}
                 onChange={(e) => setGpsTime(e.target.value)}
                 placeholder="e.g. 1369062018"
+                required
+                inputMode="decimal"
                 className="w-full bg-void border border-hairline rounded-md px-3 py-2 font-mono focus:outline-none focus:border-teal/60"
               />
             </label>

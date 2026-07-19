@@ -21,6 +21,7 @@ tensor-ready image back.
 from __future__ import annotations
 
 import io
+import math
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -115,6 +116,16 @@ def _from_gps(gps_time: float, detector: str, duration: float) -> PreprocessResu
         raise PreprocessError(
             f"detector must be one of {VALID_DETECTORS} for GPS input, "
             f"got '{detector}'"
+        )
+    if not math.isfinite(gps_time):
+        raise PreprocessError(
+            "gps_time must be a valid, finite number -- got NaN or "
+            "infinity. Enter a real GPS timestamp, e.g. 1369062018."
+        )
+    if gps_time < 0:
+        raise PreprocessError(
+            f"gps_time must be non-negative (the GPS epoch started "
+            f"1980-01-06); got {gps_time}."
         )
 
     pad = TARGET_WHITEN_PAD_SECONDS + duration / 2 + 0.5  # comfortable margin for whitening
