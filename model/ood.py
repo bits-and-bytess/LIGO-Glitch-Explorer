@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import torch
@@ -95,7 +96,7 @@ class OODThreshold:
 class MahalanobisOOD:
     class_means: np.ndarray       # (num_classes, embed_dim)
     shared_precision: np.ndarray  # (embed_dim, embed_dim), inverse of pooled covariance
-    threshold: float | None = None
+    threshold: Optional[float] = None
 
     @classmethod
     def fit(cls, embeddings: np.ndarray, labels: np.ndarray, num_classes: int) -> "MahalanobisOOD":

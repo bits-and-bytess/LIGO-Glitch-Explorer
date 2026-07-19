@@ -8,6 +8,7 @@ JSON with scripts/generate_library_assets.py.
 """
 import json
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -27,7 +28,7 @@ def _load_library():
 
 
 @router.get("")
-async def list_classes(search: str | None = None):
+async def list_classes(search: Optional[str] = None):
     classes = _load_library()
     if search:
         s = search.lower()

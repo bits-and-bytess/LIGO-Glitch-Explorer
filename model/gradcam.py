@@ -8,6 +8,7 @@ spectrogram.
 from __future__ import annotations
 
 import io
+from typing import Optional
 
 import numpy as np
 import torch
@@ -29,7 +30,7 @@ class GradCAMExplainer:
         # extractor -- highest-level spatial features, standard GradCAM target.
         self.cam_extractor = TorchCamGradCAM(model, target_layer=target_layer)
 
-    def explain(self, input_tensor: torch.Tensor, class_idx: int | None = None):
+    def explain(self, input_tensor: torch.Tensor, class_idx: Optional[int] = None):
         """
         input_tensor: (1, 3, 224, 224) normalized tensor, requires_grad not needed
         class_idx: which class to explain; defaults to the predicted class
@@ -49,7 +50,7 @@ class GradCAMExplainer:
         return {"cam": cam, "class_idx": class_idx}
 
     def overlay_png_bytes(self, input_tensor: torch.Tensor, original_image: np.ndarray,
-                           class_idx: int | None = None, alpha: float = 0.5) -> bytes:
+                           class_idx: Optional[int] = None, alpha: float = 0.5) -> bytes:
         """Returns PNG bytes of the spectrogram with the GradCAM heatmap overlaid."""
         result = self.explain(input_tensor, class_idx)
         cam_img = to_pil_image(torch.from_numpy(result["cam"]).unsqueeze(0), mode="F")

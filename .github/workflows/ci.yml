@@ -8,14 +8,21 @@ on:
 
 jobs:
   backend:
-    name: Backend tests & lint
+    name: Backend tests & lint (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 is the minimum supported version (catches version-specific
+        # bugs like 3.10+-only `X | None` union syntax, which crashed for
+        # a real user on 3.9 before this matrix existed); 3.12 is current.
+        python-version: ["3.9", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: "pip"
           cache-dependency-path: requirements-dev.txt
 

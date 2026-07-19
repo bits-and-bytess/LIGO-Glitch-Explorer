@@ -27,6 +27,11 @@ right now with synthetic or your own data.
 
 ## Quickstart
 
+Requires **Python 3.9+**. (An earlier version of this code used `X | None`
+union-type syntax that only works on Python 3.10+ without care; this
+was found and fixed after failing on a real Python 3.9 environment --
+see CI, which now runs the test suite against both 3.9 and 3.12.)
+
 ```bash
 # 1. Environment
 python -m venv venv && source venv/bin/activate

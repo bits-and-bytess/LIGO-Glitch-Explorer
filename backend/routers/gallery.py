@@ -7,6 +7,7 @@ every request.
 """
 import json
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -27,10 +28,10 @@ def _load_gallery():
 
 @router.get("")
 async def list_anomalies(
-    detector: str | None = Query(None, pattern="^(H1|L1)$"),
-    min_ood_score: float | None = None,
-    gps_start: float | None = None,
-    gps_end: float | None = None,
+    detector: Optional[str] = Query(None, pattern="^(H1|L1)$"),
+    min_ood_score: Optional[float] = None,
+    gps_start: Optional[float] = None,
+    gps_end: Optional[float] = None,
 ):
     entries = _load_gallery()
     if detector:

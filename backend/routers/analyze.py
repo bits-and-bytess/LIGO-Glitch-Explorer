@@ -1,4 +1,5 @@
 import io
+from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
@@ -13,7 +14,7 @@ router = APIRouter(prefix="/analyze", tags=["analyze"])
 async def analyze_upload(
     file: UploadFile = File(...),
     input_format: str = Form(...),   # "hdf5" | "image" | "csv"
-    detector: str | None = Form(None),
+    detector: Optional[str] = Form(None),
     duration: float = Form(1.0),
 ):
     if input_format not in ("hdf5", "image", "csv"):

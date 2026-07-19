@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import torch
@@ -29,12 +30,12 @@ _normalize = transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
 
 
 class InferenceService:
-    def __init__(self, device: str | None = None):
+    def __init__(self, device: Optional[str] = None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.model: GlitchClassifier | None = None
+        self.model: Optional[GlitchClassifier] = None
         self.classes = GRAVITY_SPY_CLASSES
-        self.gradcam: GradCAMExplainer | None = None
-        self.ood_threshold: OODThreshold | None = None
+        self.gradcam: Optional[GradCAMExplainer] = None
+        self.ood_threshold: Optional[OODThreshold] = None
 
     def load(self):
         if not WEIGHTS_PATH.exists():

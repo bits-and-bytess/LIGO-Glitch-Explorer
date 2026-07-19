@@ -39,6 +39,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import requests
 
@@ -62,7 +63,7 @@ def resolve_files(record_id: str):
     }
 
 
-def download_file(url: str, dest: Path, expected_size: int | None = None,
+def download_file(url: str, dest: Path, expected_size: Optional[int] = None,
                    chunk_size: int = 1 << 20, max_retries: int = 5,
                    _sleep=time.sleep):
     """Download `url` to `dest`, resumable across retries.
