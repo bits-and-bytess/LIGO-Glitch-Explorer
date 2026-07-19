@@ -11,28 +11,28 @@ export default function LibraryDetail() {
     getLibraryClass(className).then(setCls).catch((e) => setError(e.message));
   }, [className]);
 
-  if (error) return <p className="text-amber-400">{error}</p>;
-  if (!cls) return <p className="text-slate-400">Loading...</p>;
+  if (error) return <p className="text-anomaly-bright font-mono">{error}</p>;
+  if (!cls) return <p className="text-ink-muted">Loading...</p>;
 
   return (
     <div className="space-y-8">
-      <Link to="/library" className="text-sm text-accent">&larr; Back to library</Link>
+      <Link to="/library" className="text-sm text-teal font-medium">&larr; Back to library</Link>
       <div>
-        <h1 className="text-2xl font-semibold">{cls.name.replace(/_/g, " ")}</h1>
-        <p className="text-slate-300 mt-2 max-w-2xl">{cls.description}</p>
+        <h1 className="text-2xl font-display font-semibold">{cls.name.replace(/_/g, " ")}</h1>
+        <p className="text-ink-muted mt-2 max-w-2xl leading-relaxed">{cls.description}</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
         <Stat label="Physical origin" value={cls.physical_origin || "Unknown / unconfirmed"} />
-        <Stat label="Frequency range" value={`${cls.frequency_range_hz[0]}-${cls.frequency_range_hz[1]} Hz`} />
-        <Stat label="Typical duration" value={`${cls.typical_duration_s[0]}-${cls.typical_duration_s[1]} s`} />
+        <Stat label="Frequency range" value={`${cls.frequency_range_hz[0]}\u2013${cls.frequency_range_hz[1]} Hz`} mono />
+        <Stat label="Typical duration" value={`${cls.typical_duration_s[0]}\u2013${cls.typical_duration_s[1]} s`} mono />
       </div>
 
       <div>
-        <h2 className="text-lg font-medium mb-3">Examples with GradCAM overlays</h2>
+        <h2 className="text-lg font-display font-medium mb-3">Examples with GradCAM overlays</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {(cls.all_examples || [{ spectrogram_url: cls.example_spectrogram_url, gradcam_url: cls.example_gradcam_url }]).map((ex, i) => (
-            <div key={i} className="bg-panel rounded-lg overflow-hidden border border-slate-800">
+            <div key={i} className="bg-panel rounded-lg overflow-hidden border border-hairline">
               <img src={ex.gradcam_url} alt="" className="w-full aspect-square object-cover" />
             </div>
           ))}
@@ -41,10 +41,10 @@ export default function LibraryDetail() {
 
       {cls.similar_classes?.length > 0 && (
         <div>
-          <h2 className="text-lg font-medium mb-2">Often confused with</h2>
+          <h2 className="text-lg font-display font-medium mb-2">Often confused with</h2>
           <div className="flex gap-2 flex-wrap">
             {cls.similar_classes.map((s) => (
-              <Link key={s} to={`/library/${s}`} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-sm">
+              <Link key={s} to={`/library/${s}`} className="px-3 py-1 rounded-full bg-panel-raised border border-hairline hover:border-teal/50 text-sm transition-colors">
                 {s.replace(/_/g, " ")}
               </Link>
             ))}
@@ -55,11 +55,11 @@ export default function LibraryDetail() {
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, mono }) {
   return (
-    <div className="bg-panel rounded-lg p-3 border border-slate-800">
-      <div className="text-slate-500 text-xs uppercase tracking-wide">{label}</div>
-      <div className="mt-1">{value}</div>
+    <div className="bg-panel rounded-lg p-3 border border-hairline">
+      <div className="text-ink-muted text-xs uppercase tracking-wide font-mono">{label}</div>
+      <div className={`mt-1 ${mono ? "font-mono" : ""}`}>{value}</div>
     </div>
   );
 }

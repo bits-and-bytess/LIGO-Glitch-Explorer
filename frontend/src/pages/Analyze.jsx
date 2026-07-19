@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { analyzeUpload, analyzeGPS, getResult } from "../api";
+import OODScoreChart from "../components/OODScoreChart";
 
 const FORMATS = [
   { id: "hdf5", label: "HDF5 strain file" },
@@ -24,7 +25,6 @@ export default function Analyze() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
-  // Load an existing result if we navigated here via a shared permalink.
   useEffect(() => {
     if (resultId) {
       setLoading(true);
@@ -59,17 +59,20 @@ export default function Analyze() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Analyze a Signal</h1>
+      <div>
+        <h1 className="text-2xl font-display font-semibold">Analyze a Signal</h1>
+        <p className="text-sm text-ink-muted mt-1">Every result gets a permanent, shareable link.</p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="bg-panel border border-slate-800 rounded-xl p-6 space-y-5 max-w-2xl">
+      <form onSubmit={handleSubmit} className="bg-panel border border-hairline rounded-xl p-6 space-y-5 max-w-2xl">
         <div className="flex gap-2 flex-wrap">
           {FORMATS.map((f) => (
             <button
               type="button"
               key={f.id}
               onClick={() => setFormat(f.id)}
-              className={`px-3 py-1.5 rounded-md text-sm border ${
-                format === f.id ? "border-accent text-accent bg-accent/10" : "border-slate-700 text-slate-300"
+              className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
+                format === f.id ? "border-teal text-teal bg-teal/10" : "border-hairline text-ink-muted hover:text-ink"
               }`}
             >
               {f.label}
@@ -80,17 +83,17 @@ export default function Analyze() {
         {format === "gps" ? (
           <div className="grid grid-cols-2 gap-4">
             <label className="text-sm space-y-1">
-              <span className="text-slate-400">GPS time</span>
+              <span className="text-ink-muted">GPS time</span>
               <input
                 value={gpsTime}
                 onChange={(e) => setGpsTime(e.target.value)}
                 placeholder="e.g. 1369062018"
-                className="w-full bg-void border border-slate-700 rounded-md px-3 py-2"
+                className="w-full bg-void border border-hairline rounded-md px-3 py-2 font-mono focus:outline-none focus:border-teal/60"
               />
             </label>
             <label className="text-sm space-y-1">
-              <span className="text-slate-400">Detector</span>
-              <select value={detector} onChange={(e) => setDetector(e.target.value)} className="w-full bg-void border border-slate-700 rounded-md px-3 py-2">
+              <span className="text-ink-muted">Detector</span>
+              <select value={detector} onChange={(e) => setDetector(e.target.value)} className="w-full bg-void border border-hairline rounded-md px-3 py-2 focus:outline-none focus:border-teal/60">
                 <option value="H1">H1 -- Hanford</option>
                 <option value="L1">L1 -- Livingston</option>
               </select>
@@ -98,7 +101,7 @@ export default function Analyze() {
           </div>
         ) : (
           <div className="space-y-1 text-sm">
-            <span className="text-slate-400">
+            <span className="text-ink-muted">
               {format === "hdf5" && "GWOSC .hdf5/.h5 strain file"}
               {format === "image" && "Spectrogram image (PNG/JPG)"}
               {format === "csv" && "CSV with time + strain columns"}
@@ -107,22 +110,22 @@ export default function Analyze() {
               type="file"
               accept={format === "image" ? "image/png,image/jpeg" : format === "csv" ? ".csv" : ".h5,.hdf5"}
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-300"
+              className="block w-full text-sm text-ink-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-hairline file:bg-panel-raised file:text-ink file:text-sm"
             />
-            {file && <p className="text-xs text-slate-500">Selected: {file.name}</p>}
+            {file && <p className="text-xs font-mono text-ink-muted">Selected: {file.name}</p>}
           </div>
         )}
 
         <label className="text-sm space-y-1 block">
-          <span className="text-slate-400">Duration</span>
+          <span className="text-ink-muted">Duration</span>
           <div className="flex gap-2">
             {DURATIONS.map((d) => (
               <button
                 type="button"
                 key={d}
                 onClick={() => setDuration(d)}
-                className={`px-3 py-1 rounded-md text-sm border ${
-                  duration === d ? "border-accent text-accent" : "border-slate-700 text-slate-300"
+                className={`px-3 py-1 rounded-md text-sm font-mono border transition-colors ${
+                  duration === d ? "border-teal text-teal" : "border-hairline text-ink-muted"
                 }`}
               >
                 {d}s
@@ -134,12 +137,12 @@ export default function Analyze() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 rounded-md bg-signal hover:bg-signal/90 disabled:opacity-50 font-medium"
+          className="w-full py-2.5 rounded-md bg-teal hover:bg-teal/90 disabled:opacity-50 font-display font-medium text-void"
         >
           {loading ? "Running inference..." : "Analyze"}
         </button>
 
-        {error && <p className="text-amber-400 text-sm">{error}</p>}
+        {error && <p className="text-anomaly-bright text-sm font-mono">{error}</p>}
       </form>
 
       {result && <ResultPanel result={result} />}
@@ -152,60 +155,61 @@ function ResultPanel({ result }) {
   const sortedProbs = Object.entries(result.class_probabilities).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   return (
-    <div className="bg-panel border border-slate-800 rounded-xl p-6 max-w-2xl space-y-5">
+    <div className="bg-panel border border-hairline rounded-xl p-6 max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-medium">
+        <h2 className="text-xl font-display font-medium">
           {result.predicted_class.replace(/_/g, " ")}
-          <span className="text-slate-400 text-sm ml-2">{(result.confidence * 100).toFixed(1)}% confidence</span>
+          <span className="text-ink-muted text-sm ml-2 font-mono">{(result.confidence * 100).toFixed(1)}%</span>
         </h2>
         {result.ood_flagged && (
-          <span className="text-xs px-2 py-1 rounded-full bg-amber-500/15 text-amber-400">Flagged as OOD</span>
+          <span className="text-xs px-2 py-1 rounded-full bg-anomaly/15 text-anomaly-bright font-mono font-medium">Flagged as OOD</span>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <p className="text-xs text-slate-500 mb-1">Q-transform spectrogram</p>
+          <p className="text-xs font-mono text-ink-muted mb-1">Q-transform spectrogram</p>
           <img src={result.spectrogram_url} className="rounded-md w-full" />
         </div>
         <div>
-          <p className="text-xs text-slate-500 mb-1">GradCAM overlay</p>
+          <p className="text-xs font-mono text-ink-muted mb-1">GradCAM overlay</p>
           <img src={result.gradcam_url} className="rounded-md w-full" />
         </div>
       </div>
 
       <div>
-        <p className="text-xs text-slate-500 mb-2">Top class probabilities</p>
-        <div className="space-y-1">
+        <p className="text-xs font-mono text-ink-muted mb-2">Top class probabilities</p>
+        <div className="space-y-1.5">
           {sortedProbs.map(([name, p]) => (
             <div key={name} className="flex items-center gap-2 text-sm">
               <span className="w-40 truncate">{name.replace(/_/g, " ")}</span>
-              <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full bg-signal" style={{ width: `${p * 100}%` }} />
+              <div className="flex-1 h-2 bg-void rounded-full overflow-hidden">
+                <div className="h-full bg-teal" style={{ width: `${p * 100}%` }} />
               </div>
-              <span className="w-12 text-right text-slate-400">{(p * 100).toFixed(1)}%</span>
+              <span className="w-14 text-right text-ink-muted font-mono text-xs">{(p * 100).toFixed(1)}%</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="bg-void rounded-md p-3 text-sm text-slate-300">
-        <span className="text-slate-500">OOD score: </span>
-        {result.ood_score.toFixed(3)} -- {result.ood_interpretation}
+      <div className="bg-void rounded-md p-3 border border-hairline">
+        <p className="text-xs font-mono text-ink-muted mb-1">OOD score: {result.ood_score.toFixed(3)}</p>
+        <OODScoreChart score={result.ood_score} threshold={result.ood_threshold} flagged={result.ood_flagged} />
+        <p className="text-sm text-ink-muted mt-1">{result.ood_interpretation}</p>
       </div>
 
       {result.warnings?.length > 0 && (
-        <ul className="text-xs text-amber-400 list-disc list-inside space-y-1">
+        <ul className="text-xs font-mono text-anomaly-bright list-disc list-inside space-y-1">
           {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
         </ul>
       )}
 
-      <div className="flex items-center gap-2 text-xs text-slate-500">
+      <div className="flex items-center gap-2 text-xs font-mono text-ink-muted">
         <span>Shareable link:</span>
-        <code className="bg-void px-2 py-1 rounded">{shareUrl}</code>
+        <code className="bg-void px-2 py-1 rounded border border-hairline">{shareUrl}</code>
         <button
           onClick={() => navigator.clipboard.writeText(shareUrl)}
-          className="text-accent underline"
+          className="text-teal underline"
         >
           copy
         </button>
