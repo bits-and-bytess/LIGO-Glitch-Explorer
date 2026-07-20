@@ -108,7 +108,7 @@ def _from_hdf5(path_or_buffer, detector: Optional[str], duration: float) -> Prep
 # Format 2: GPS time + detector -> pull from GWOSC
 # --------------------------------------------------------------------------
 def _from_gps(gps_time: float, detector: str, duration: float) -> PreprocessResult:
-    from gwpy.segments import DataQualityFlag
+    from gwosc.timeline import get_segments
     from gwpy.timeseries import TimeSeries
 
     warnings = []
@@ -134,20 +134,32 @@ def _from_gps(gps_time: float, detector: str, duration: float) -> PreprocessResu
     # Fallback: confirm the window is in a science-mode segment before
     # fetching. If not, widen the search or flag it clearly rather than
     # silently returning noise-only / no data.
-    flag_name = f"{detector}:DCS-ANALYSIS_READY_C01:1"
+    #
+    # IMPORTANT: this must use GWOSC's own public timeline API
+    # (gwosc.timeline.get_segments), NOT gwpy.segments.DataQualityFlag,
+    # which queries the LIGO/Virgo/KAGRA collaboration's private segment
+    # database at segments.ligo.org and requires authenticated credentials
+    # this public-facing tool's anonymous users don't have -- confirmed by
+    # a real 401 Unauthorized from a live request. get_segments() hits
+    # GWOSC's public API instead, which explicitly requires no auth.
     try:
-        science_segments = DataQualityFlag.query(flag_name, start, end)
-        if not science_segments.active:
+        available_segments = get_segments(f"{detector}_DATA", int(start), int(end))
+        window_covered = any(
+            seg_start <= start and end <= seg_end
+            for seg_start, seg_end in available_segments
+        )
+        if not window_covered:
             warnings.append(
-                f"Requested GPS time {gps_time} does not fall within a "
-                f"known science-mode segment for {detector}. The detector "
-                f"may have been down or in an engineering run; results "
-                f"should be treated with caution."
+                f"Requested GPS time {gps_time} does not fall fully within "
+                f"a known public science-mode segment for {detector}. The "
+                f"detector may have been down or in an engineering run at "
+                f"this time; the fetch below may fail or results should be "
+                f"treated with caution."
             )
     except Exception as e:  # pragma: no cover - network/service dependent
         warnings.append(
-            f"Could not verify science-mode segment ({e}); proceeding "
-            f"without that check."
+            f"Could not verify science-mode segment via GWOSC's public "
+            f"timeline ({e}); proceeding without that check."
         )
 
     try:
