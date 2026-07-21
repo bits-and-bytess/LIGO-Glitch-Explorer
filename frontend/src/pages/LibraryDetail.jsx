@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getLibraryClass } from "../api";
+import { getLibraryClass, mediaUrl } from "../api";
 
 export default function LibraryDetail() {
   const { className } = useParams();
@@ -33,7 +33,7 @@ export default function LibraryDetail() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {(cls.all_examples || [{ spectrogram_url: cls.example_spectrogram_url, gradcam_url: cls.example_gradcam_url }]).map((ex, i) => (
             <div key={i} className="bg-panel rounded-lg overflow-hidden border border-hairline">
-              <img src={ex.gradcam_url} alt="" className="w-full aspect-square object-cover" />
+              <img src={mediaUrl(ex.gradcam_url)} alt="" className="w-full aspect-square object-cover" />
             </div>
           ))}
         </div>

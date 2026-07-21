@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getGallery } from "../api";
+import { getGallery, mediaUrl } from "../api";
 
 export default function Gallery() {
   const [entries, setEntries] = useState(null);
@@ -49,7 +49,7 @@ export default function Gallery() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {entries?.map((e) => (
           <div key={e.id} className="bg-panel rounded-xl overflow-hidden border border-hairline hover:border-anomaly/40 transition-colors">
-            <img src={e.gradcam_url} alt="" className="w-full aspect-square object-cover bg-black" />
+            <img src={mediaUrl(e.gradcam_url)} alt="" className="w-full aspect-square object-cover bg-black" />
             <div className="p-4 space-y-1 text-sm">
               <div className="flex justify-between font-mono">
                 <span className="font-medium">{e.detector}</span>

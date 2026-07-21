@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { analyzeUpload, analyzeGPS, getResult } from "../api";
+import { analyzeUpload, analyzeGPS, getResult, mediaUrl } from "../api";
 import OODScoreChart from "../components/OODScoreChart";
 
 const FORMATS = [
@@ -178,11 +178,11 @@ function ResultPanel({ result }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <p className="text-xs font-mono text-ink-muted mb-1">Q-transform spectrogram</p>
-          <img src={result.spectrogram_url} className="rounded-md w-full" />
+          <img src={mediaUrl(result.spectrogram_url)} className="rounded-md w-full" />
         </div>
         <div>
           <p className="text-xs font-mono text-ink-muted mb-1">GradCAM overlay</p>
-          <img src={result.gradcam_url} className="rounded-md w-full" />
+          <img src={mediaUrl(result.gradcam_url)} className="rounded-md w-full" />
         </div>
       </div>
 

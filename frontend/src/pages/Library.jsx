@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getLibrary } from "../api";
+import { getLibrary, mediaUrl } from "../api";
 
 export default function Library() {
   const [classes, setClasses] = useState(null);
@@ -41,7 +41,7 @@ export default function Library() {
             to={`/library/${encodeURIComponent(c.name)}`}
             className="bg-panel rounded-xl overflow-hidden border border-hairline hover:border-teal/50 transition-colors group"
           >
-            <img src={c.example_gradcam_url} alt={`${c.name} GradCAM example`} className="w-full aspect-square object-cover bg-black" />
+            <img src={mediaUrl(c.example_gradcam_url)} alt={`${c.name} GradCAM example`} className="w-full aspect-square object-cover bg-black" />
             <div className="p-4 space-y-1.5">
               <h3 className="font-display font-medium group-hover:text-teal transition-colors">{c.name.replace(/_/g, " ")}</h3>
               <p className="text-xs text-ink-muted line-clamp-2">{c.description}</p>
