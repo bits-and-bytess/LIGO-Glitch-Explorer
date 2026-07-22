@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import torch
-from gwpy.segments import DataQualityFlag
+from gwosc.timeline import get_segments
 
 from model.gradcam import GradCAMExplainer
 from model.model import GRAVITY_SPY_CLASSES, load_model
@@ -31,6 +31,36 @@ from preprocessing.qtransform import preprocess
 DEFAULT_WEIGHTS_PATH = "model/weights/efficientnet_gravityspy.pt"
 DEFAULT_OOD_PATH = "model/weights/ood_threshold.json"
 DEFAULT_OUT_DIR = "backend/static/gallery"
+
+
+def get_available_segments(detector: str, gps_start: float, gps_end: float):
+    """Public data-available segments for `detector` over [gps_start, gps_end],
+    via GWOSC's public timeline API. Returns None (not an empty list) if the
+    check itself fails -- distinct from "checked and found nothing available."
+
+    Deliberately NOT gwpy.segments.DataQualityFlag, which queries LIGO's
+    private, credentials-gated segment database and fails outright with
+    401 Unauthorized for anyone without collaboration credentials --
+    confirmed by an actual live failure from this same mistake elsewhere
+    in this codebase.
+    """
+    try:
+        return get_segments(detector + "_DATA", int(gps_start), int(gps_end))
+    except Exception as e:
+        print(f"WARNING: could not fetch the public segment list ({e}); "
+              f"scanning every window without pre-filtering. Slower, but "
+              f"still correct -- preprocess() skips windows with no "
+              f"actual data on its own.")
+        return None
+
+
+def is_in_available_segment(t: float, duration: float, available_segments) -> bool:
+    if available_segments is None:
+        return True  # no pre-filter available; preprocess() will sort it out
+    return any(
+        seg_start <= t and t + duration <= seg_end
+        for seg_start, seg_end in available_segments
+    )
 
 
 def main():
@@ -53,16 +83,14 @@ def main():
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Restrict the scan to actual science-mode segments -- scanning
-    # downtime just produces meaningless "anomalies."
-    flag = DataQualityFlag.query(
-        f"{args.detector}:DCS-ANALYSIS_READY_C01:1", args.gps_start, args.gps_end
-    )
+    # Restrict the scan to actual public data-available segments --
+    # scanning downtime just produces meaningless "anomalies."
+    available_segments = get_available_segments(args.detector, args.gps_start, args.gps_end)
 
     candidates = []
     t = args.gps_start
     while t < args.gps_end:
-        if not flag.active.intersects_segment((t, t + args.duration)):
+        if not is_in_available_segment(t, args.duration, available_segments):
             t += args.stride
             continue
         try:
