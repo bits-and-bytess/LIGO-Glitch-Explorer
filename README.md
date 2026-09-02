@@ -6,7 +6,7 @@ GWOSC public strain data.
 
 ## Status / how to read this repo
 
-This repo is a working scaffold for the full 10-week project in your spec.
+Currently working on a shorter timeline.
 It is organized so each week's deliverable maps to a folder:
 
 | Weeks | Deliverable                  | Folder                          |
